@@ -32,9 +32,11 @@ while True:
 
     # 🧠 تجميع المباريات حسب الدوري
     for m in matches:
-        title = m.get("title")
-        comp = m.get("competition", {}).get("name", "Unknown League")
-        url = m.get("url")
+    title = m.get("title")
+    
+    comp = (m.get("competition") or {}).get("name", "Unknown League")
+    
+    url = m.get("url")
 
         key = title + str(url)
 
