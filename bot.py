@@ -3,7 +3,7 @@ import time
 from datetime import datetime
 
 # 🔑 ضع توكن البوت هنا
-BOT_TOKEN = "8349173390:AAHPUyO54QOpC0mZKhrwKlC6krsP31TpzNg"
+BOT_TOKEN = "8349173390:AAGiQz72VJSuYVpIuS--QdCVlSAdO2WLb48"
 
 # 📢 يوزر القناة
 CHAT_ID = "@Gol_lives"
