@@ -18,8 +18,8 @@ def send_message(text):
 
 def get_matches():
     try:
-        r = requests.get(API_URL)
-        return r.json().get("response", [])
+        response = requests.get(API_URL)
+        return response.json().get("response", [])
     except:
         return []
 
@@ -30,13 +30,13 @@ while True:
 
     leagues = {}
 
-    # 🧠 تجميع المباريات حسب الدوري
     for m in matches:
-    title = m.get("title")
-    
-    comp = (m.get("competition") or {}).get("name", "Unknown League")
-    
-    url = m.get("url")
+        title = m.get("title")
+
+        # ✅ حماية من None
+        comp = (m.get("competition") or {}).get("name", "Unknown League")
+
+        url = m.get("url")
 
         key = title + str(url)
 
@@ -47,7 +47,7 @@ while True:
             leagues[comp].append((title, url))
             posted_matches.add(key)
 
-    # 📤 إرسال كل دوري برسالة منفصلة
+    # 📤 إرسال لكل دوري رسالة منفصلة
     for league, games in leagues.items():
         message = f"🏆 {league}\n"
         message += "━━━━━━━━━━━━━━\n\n"
