@@ -5,11 +5,9 @@ from datetime import datetime
 BOT_TOKEN = "PUT_YOUR_TOKEN_HERE"
 CHAT_ID = "@Gol_lives"
 
-# 📡 مصدر مباريات (API مجاني كمثال)
 API_URL = "https://www.scorebat.com/video-api/v3/"
 
-# نخزن آخر فيديو حتى ما نكرر
-posted_links = set()
+posted_matches = set()
 
 def send_message(text):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -20,33 +18,45 @@ def send_message(text):
 
 def get_matches():
     try:
-        response = requests.get(API_URL)
-        data = response.json()
-        return data.get("response", [])
+        r = requests.get(API_URL)
+        return r.json().get("response", [])
     except:
         return []
 
-print("Bot started at:", datetime.now())
+print("Bot started:", datetime.now())
 
 while True:
     matches = get_matches()
 
-    for match in matches:
-        title = match.get("title")
-        url = match.get("url")
+    leagues = {}
 
-        # نتأكد ما نشرناه قبل
-        if url and url not in posted_links:
-            message = f"""⚽ New Match Update
+    # 🧠 تجميع المباريات حسب الدوري
+    for m in matches:
+        title = m.get("title")
+        comp = m.get("competition", {}).get("name", "Unknown League")
+        url = m.get("url")
 
-🏆 {title}
-🎥 Watch: {url}
+        key = title + str(url)
 
-⏰ {datetime.now()}"""
+        if key not in posted_matches:
+            if comp not in leagues:
+                leagues[comp] = []
 
-            send_message(message)
-            posted_links.add(url)
+            leagues[comp].append((title, url))
+            posted_matches.add(key)
 
-            time.sleep(2)
+    # 📤 إرسال كل دوري برسالة منفصلة
+    for league, games in leagues.items():
+        message = f"🏆 {league}\n"
+        message += "━━━━━━━━━━━━━━\n\n"
 
-    time.sleep(60)
+        for game in games:
+            title, url = game
+            message += f"⚽ {title}\n🎥 {url}\n\n"
+
+        message += f"⏰ {datetime.now()}"
+
+        send_message(message)
+        time.sleep(2)
+
+    time.sleep(300)
