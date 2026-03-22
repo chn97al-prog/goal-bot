@@ -1,11 +1,13 @@
+import os
 import requests
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
-BOT_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
-OPENAI_API_KEY = "YOUR_OPENAI_API_KEY"
+# 🔐 قراءة المتغيرات من Railway
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# 🎛️ الأزرار
+# 🎛️ أزرار
 keyboard = [
     ["🎨 Generate Image", "🖼️ Edit Image"]
 ]
@@ -58,7 +60,6 @@ def edit_image(image_path, prompt):
     return res.json()["data"][0]["url"]
 
 
-# 📥 معالجة الرسائل
 def handle_message(update: Update, context: CallbackContext):
     text = update.message.text
 
