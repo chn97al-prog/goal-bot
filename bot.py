@@ -5,9 +5,14 @@ from flask import Flask, request
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
+if not BOT_TOKEN:
+    raise Exception("BOT_TOKEN is missing")
+
+if not OPENAI_API_KEY:
+    raise Exception("OPENAI_API_KEY is missing")
+
 app = Flask(__name__)
 
-# ================== State ==================
 user_state = {}
 
 # ================== Telegram ==================
@@ -64,15 +69,15 @@ def generate_image(prompt):
 
     return result["data"][0]["url"]
 
-# ================== Download Telegram File ==================
+# ================== Download File ==================
 
 def download_telegram_file(file_id):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/getFile"
     res = requests.get(url, params={"file_id": file_id}).json()
 
     file_path = res["result"]["file_path"]
-
     file_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
+
     file_data = requests.get(file_url)
 
     file_name = "temp.png"
@@ -111,92 +116,96 @@ def edit_image(image_path, prompt):
 
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def webhook():
-    data = request.get_json()
+    try:
+        data = request.get_json()
 
-    if not data:
-        return "no data", 400
+        if not data:
+            return "no data", 400
 
-    if "message" in data:
-        msg = data["message"]
-        chat_id = msg["chat"]["id"]
+        if "message" in data:
+            msg = data["message"]
+            chat_id = msg["chat"]["id"]
 
-        text = msg.get("text")
-        photo = msg.get("photo")
+            text = msg.get("text")
+            photo = msg.get("photo")
 
-        state = user_state.get(chat_id, "chat")
+            state = user_state.get(chat_id, "chat")
 
-        # ================= Commands =================
+            # ================= Commands =================
 
-        if text == "/start":
-            user_state[chat_id] = "chat"
-            send_message(chat_id,
-                "👋 أهلاً بك\n\n"
-                "الأوامر:\n"
-                "/chat - محادثة\n"
-                "/generate - إنشاء صورة\n"
-                "/edit - تعديل صورة"
-            )
-            return "ok"
+            if text == "/start":
+                user_state[chat_id] = "chat"
+                send_message(chat_id,
+                    "👋 أهلاً بك\n\n"
+                    "/chat - محادثة\n"
+                    "/generate - إنشاء صورة\n"
+                    "/edit - تعديل صورة"
+                )
+                return "ok"
 
-        elif text == "/chat":
-            user_state[chat_id] = "chat"
-            send_message(chat_id, "💬 وضع المحادثة مفعل")
-            return "ok"
+            elif text == "/chat":
+                user_state[chat_id] = "chat"
+                send_message(chat_id, "💬 وضع المحادثة مفعل")
+                return "ok"
 
-        elif text == "/generate":
-            user_state[chat_id] = "generate"
-            send_message(chat_id, "🎨 أرسل وصف الصورة")
-            return "ok"
+            elif text == "/generate":
+                user_state[chat_id] = "generate"
+                send_message(chat_id, "🎨 أرسل وصف الصورة")
+                return "ok"
 
-        elif text == "/edit":
-            user_state[chat_id] = "edit"
-            send_message(chat_id, "🖼️ أرسل صورة مع وصف (caption)")
-            return "ok"
+            elif text == "/edit":
+                user_state[chat_id] = "edit"
+                send_message(chat_id, "🖼️ أرسل صورة مع وصف (caption)")
+                return "ok"
 
-        # ================= Image Edit =================
+            # ================= Edit Image =================
 
-        elif photo and state == "edit":
-            send_message(chat_id, "⏳ جاري تعديل الصورة...")
+            elif photo and state == "edit":
+                send_message(chat_id, "⏳ جاري تعديل الصورة...")
 
-            try:
-                file_id = photo[-1]["file_id"]
-                image_path = download_telegram_file(file_id)
-
-                prompt = msg.get("caption", "Edit this image")
-
-                edited_url = edit_image(image_path, prompt)
-
-                send_photo(chat_id, edited_url)
-
-            except Exception as e:
-                print(e)
-                send_message(chat_id, "❌ فشل تعديل الصورة")
-
-        # ================= Generate =================
-
-        elif text and state == "generate":
-            send_message(chat_id, "⏳ جاري إنشاء الصورة...")
-
-            try:
-                img = generate_image(text)
-                send_photo(chat_id, img)
-            except Exception as e:
-                print(e)
-                send_message(chat_id, "❌ فشل إنشاء الصورة")
-
-        # ================= Chat =================
-
-        elif text:
-            if state == "chat":
-                send_message(chat_id, "⏳ ...")
                 try:
-                    reply = ask_ai(text)
-                    send_message(chat_id, reply)
+                    file_id = photo[-1]["file_id"]
+                    image_path = download_telegram_file(file_id)
+
+                    prompt = msg.get("caption", "Edit this image")
+
+                    edited_url = edit_image(image_path, prompt)
+
+                    send_photo(chat_id, edited_url)
+
                 except Exception as e:
                     print(e)
-                    send_message(chat_id, "❌ خطأ في AI")
+                    send_message(chat_id, "❌ فشل تعديل الصورة")
 
-    return "ok", 200
+            # ================= Generate =================
+
+            elif text and state == "generate":
+                send_message(chat_id, "⏳ جاري إنشاء الصورة...")
+
+                try:
+                    img = generate_image(text)
+                    send_photo(chat_id, img)
+                except Exception as e:
+                    print(e)
+                    send_message(chat_id, "❌ فشل إنشاء الصورة")
+
+            # ================= Chat =================
+
+            elif text:
+                if state == "chat":
+                    send_message(chat_id, "⏳ ...")
+                    try:
+                        reply = ask_ai(text)
+                        send_message(chat_id, reply)
+                    except Exception as e:
+                        print(e)
+                        send_message(chat_id, "❌ خطأ في AI")
+
+        return "ok", 200
+
+    except Exception as e:
+        print("Webhook error:", e)
+        return "error", 500
 
 # ================= Home =================
 
@@ -207,4 +216,5 @@ def home():
 # ================= Run =================
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
+    port = int(os.environ.get("PORT", 8000))
+    app.run(host="0.0.0.0", port=port)
