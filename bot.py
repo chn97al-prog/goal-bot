@@ -1,74 +1,116 @@
 import requests
-import time
-from datetime import datetime
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
-BOT_TOKEN = "PUT_YOUR_TOKEN_HERE"
-CHAT_ID = "@Gol_lives"
+BOT_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
+OPENAI_API_KEY = "YOUR_OPENAI_API_KEY"
 
-API_URL = "https://www.scorebat.com/video-api/v3/"
+# 🎛️ الأزرار
+keyboard = [
+    ["🎨 Generate Image", "🖼️ Edit Image"]
+]
+markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-posted_matches = set()
 
-def send_message(text):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    try:
-        requests.post(url, data={
-            "chat_id": CHAT_ID,
-            "text": text
-        })
-    except:
-        pass
+def start(update: Update, context: CallbackContext):
+    update.message.reply_text(
+        "👋 أهلاً بك في بوت الصور\nاختر من الأزرار 👇",
+        reply_markup=markup
+    )
 
-def get_matches():
-    try:
-        response = requests.get(API_URL, timeout=10)
-        data = response.json()
-        return data.get("response", [])
-    except:
-        return []
 
-print("Bot started:", datetime.now())
+def generate_image(prompt):
+    url = "https://api.openai.com/v1/images/generations"
 
-while True:
-    matches = get_matches()
-    leagues = {}
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json"
+    }
 
-    for m in matches:
-        title = m.get("title")
+    data = {
+        "model": "gpt-image-1",
+        "prompt": prompt,
+        "size": "1024x1024"
+    }
 
-        # ✅ معالجة competition بشكل آمن
-        competition = m.get("competition")
+    res = requests.post(url, headers=headers, json=data)
+    return res.json()["data"][0]["url"]
 
-        if isinstance(competition, dict):
-            comp = competition.get("name", "Unknown League")
-        else:
-            comp = "Unknown League"
 
-        url = m.get("url")
+def edit_image(image_path, prompt):
+    url = "https://api.openai.com/v1/images/edits"
 
-        if not title or not url:
-            continue
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}"
+    }
 
-        key = title + str(url)
+    files = {
+        "image": open(image_path, "rb")
+    }
 
-        if key not in posted_matches:
-            if comp not in leagues:
-                leagues[comp] = []
+    data = {
+        "model": "gpt-image-1",
+        "prompt": prompt,
+        "size": "1024x1024"
+    }
 
-            leagues[comp].append((title, url))
-            posted_matches.add(key)
+    res = requests.post(url, headers=headers, files=files, data=data)
+    return res.json()["data"][0]["url"]
 
-    # 📤 إرسال لكل دوري
-    for league, games in leagues.items():
-        message = f"🏆 {league}\n"
-        message += "━━━━━━━━━━━━━━\n\n"
 
-        for title, url in games:
-            message += f"⚽ {title}\n🎥 {url}\n\n"
+# 📥 معالجة الرسائل
+def handle_message(update: Update, context: CallbackContext):
+    text = update.message.text
 
-        message += f"⏰ {datetime.now()}"
+    # 🎨 اختيار إنشاء صورة
+    if text == "🎨 Generate Image":
+        context.user_data["mode"] = "generate"
+        update.message.reply_text("✍️ اكتب وصف الصورة")
 
-        send_message(message)
-        time.sleep(2)
+    # 🖼️ اختيار تعديل صورة
+    elif text == "🖼️ Edit Image":
+        context.user_data["mode"] = "edit"
+        update.message.reply_text("📷 أرسل الصورة مع وصف في الكابشن")
 
-    time.sleep(300)
+    # 📷 إذا المستخدم أرسل صورة
+    elif update.message.photo:
+        file = update.message.photo[-1].get_file()
+        file_path = "input.jpg"
+        file.download(file_path)
+
+        prompt = update.message.caption or "Edit this image"
+
+        update.message.reply_text("⏳ جاري تعديل الصورة...")
+
+        try:
+            img_url = edit_image(file_path, prompt)
+            update.message.reply_photo(photo=img_url)
+        except:
+            update.message.reply_text("❌ فشل تعديل الصورة")
+
+    else:
+        # 🎨 نص → إنشاء صورة
+        prompt = text
+
+        update.message.reply_text("⏳ جاري إنشاء الصورة...")
+
+        try:
+            img_url = generate_image(prompt)
+            update.message.reply_photo(photo=img_url)
+        except:
+            update.message.reply_text("❌ فشل إنشاء الصورة")
+
+
+def main():
+    updater = Updater(BOT_TOKEN, use_context=True)
+    dp = updater.dispatcher
+
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(MessageHandler(Filters.all, handle_message))
+
+    updater.start_polling()
+    updater.idle()
+
+
+if __name__ == "__main__":
+    main()
