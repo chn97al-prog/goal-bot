@@ -13,4 +13,4 @@ print("Bot started at:", datetime.now())
 
 while True:
     send_message(f"✅ Bot is alive\n⏰ {datetime.now()}")
-    time.sleep(300)
+    time.sleep(3)
