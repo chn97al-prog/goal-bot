@@ -1,6 +1,6 @@
 import requests
 import time
-
+send_message("✅ البوت شغال")
 BOT_TOKEN = "YOUR_TOKEN"
 CHAT_ID = "@your_channel"
 
