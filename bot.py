@@ -11,15 +11,19 @@ posted_matches = set()
 
 def send_message(text):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    requests.post(url, data={
-        "chat_id": CHAT_ID,
-        "text": text
-    })
+    try:
+        requests.post(url, data={
+            "chat_id": CHAT_ID,
+            "text": text
+        })
+    except:
+        pass
 
 def get_matches():
     try:
-        response = requests.get(API_URL)
-        return response.json().get("response", [])
+        response = requests.get(API_URL, timeout=10)
+        data = response.json()
+        return data.get("response", [])
     except:
         return []
 
@@ -27,16 +31,23 @@ print("Bot started:", datetime.now())
 
 while True:
     matches = get_matches()
-
     leagues = {}
 
     for m in matches:
         title = m.get("title")
 
-        # ✅ حماية من None
-        comp = (m.get("competition") or {}).get("name", "Unknown League")
+        # ✅ معالجة competition بشكل آمن
+        competition = m.get("competition")
+
+        if isinstance(competition, dict):
+            comp = competition.get("name", "Unknown League")
+        else:
+            comp = "Unknown League"
 
         url = m.get("url")
+
+        if not title or not url:
+            continue
 
         key = title + str(url)
 
@@ -47,13 +58,12 @@ while True:
             leagues[comp].append((title, url))
             posted_matches.add(key)
 
-    # 📤 إرسال لكل دوري رسالة منفصلة
+    # 📤 إرسال لكل دوري
     for league, games in leagues.items():
         message = f"🏆 {league}\n"
         message += "━━━━━━━━━━━━━━\n\n"
 
-        for game in games:
-            title, url = game
+        for title, url in games:
             message += f"⚽ {title}\n🎥 {url}\n\n"
 
         message += f"⏰ {datetime.now()}"
