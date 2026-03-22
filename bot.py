@@ -1,23 +1,19 @@
 import os
 import requests
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from flask import Flask, request
 
-# 🔐 قراءة المتغيرات من Railway
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# 🎛️ أزرار
-keyboard = [
-    ["🎨 Generate Image", "🖼️ Edit Image"]
-]
-markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+app = Flask(__name__)
 
-def start(update: Update, context: CallbackContext):
-    update.message.reply_text(
-        "👋 أهلاً بك في بوت الصور\nاختر من الأزرار 👇",
-        reply_markup=markup
-    )
+def send_message(chat_id, text):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    requests.post(url, json={"chat_id": chat_id, "text": text})
+
+def send_photo(chat_id, photo_url):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
+    requests.post(url, json={"chat_id": chat_id, "photo": photo_url})
 
 def generate_image(prompt):
     url = "https://api.openai.com/v1/images/generations"
@@ -36,76 +32,29 @@ def generate_image(prompt):
     res = requests.post(url, headers=headers, json=data)
     return res.json()["data"][0]["url"]
 
-def edit_image(image_path, prompt):
-    url = "https://api.openai.com/v1/images/edits"
+@app.route(f"/{BOT_TOKEN}", methods=["POST"])
+def webhook():
+    data = request.json
 
-    headers = {
-        "Authorization": f"Bearer {OPENAI_API_KEY}"
-    }
+    if "message" in data:
+        chat_id = data["message"]["chat"]["id"]
+        text = data["message"].get("text", "")
 
-    files = {
-        "image": open(image_path, "rb")
-    }
+        if text == "/start":
+            send_message(chat_id, "👋 اكتب أي وصف وسأحولها لصورة 🎨")
+        else:
+            send_message(chat_id, "⏳ جاري إنشاء الصورة...")
+            try:
+                img_url = generate_image(text)
+                send_photo(chat_id, img_url)
+            except:
+                send_message(chat_id, "❌ فشل إنشاء الصورة")
 
-    data = {
-        "model": "gpt-image-1",
-        "prompt": prompt,
-        "size": "1024x1024"
-    }
+    return "ok"
 
-    res = requests.post(url, headers=headers, files=files, data=data)
-    return res.json()["data"][0]["url"]
-
-def handle_message(update: Update, context: CallbackContext):
-    text = update.message.text
-
-    # 🎨 اختيار إنشاء صورة
-    if text == "🎨 Generate Image":
-        context.user_data["mode"] = "generate"
-        update.message.reply_text("✍️ اكتب وصف الصورة")
-
-    # 🖼️ اختيار تعديل صورة
-    elif text == "🖼️ Edit Image":
-        context.user_data["mode"] = "edit"
-        update.message.reply_text("📷 أرسل الصورة مع وصف في الكابشن")
-
-    # 📷 إذا المستخدم أرسل صورة
-    elif update.message.photo:
-        file = update.message.photo[-1].get_file()
-        file_path = "input.jpg"
-        file.download(file_path)
-
-        prompt = update.message.caption or "Edit this image"
-
-        update.message.reply_text("⏳ جاري تعديل الصورة...")
-
-        try:
-            img_url = edit_image(file_path, prompt)
-            update.message.reply_photo(photo=img_url)
-        except:
-            update.message.reply_text("❌ فشل تعديل الصورة")
-
-    else:
-        # 🎨 نص → إنشاء صورة
-        prompt = text
-
-        update.message.reply_text("⏳ جاري إنشاء الصورة...")
-
-        try:
-            img_url = generate_image(prompt)
-            update.message.reply_photo(photo=img_url)
-        except:
-            update.message.reply_text("❌ فشل إنشاء الصورة")
-
-def main():
-    updater = Updater(BOT_TOKEN, use_context=True)
-    dp = updater.dispatcher
-
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(MessageHandler(Filters.all, handle_message))
-
-    updater.start_polling()
-    updater.idle()
+@app.route("/")
+def home():
+    return "Bot is running"
 
 if __name__ == "__main__":
-    main()
+    app.run(host="0.0.0.0", port=8000)
